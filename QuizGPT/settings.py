@@ -11,21 +11,22 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+from decouple import config
+
+# Load the OpenAI API key from the .env file
+OPENAI_API_KEY = config('OPENAI_API_KEY')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -37,12 +38,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    
-    
+    'rest_framework_simplejwt',
     #created apps
     "quiz",
     "user",
-    ]
+]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
 
 OPENAI_API_KEY = "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"
 
@@ -74,8 +81,9 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'QuizGPT.wsgi.application'
+AUTH_USER_MODEL = 'user.CustomUser'
 
+WSGI_APPLICATION = 'QuizGPT.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
@@ -86,7 +94,6 @@ DATABASES = {
         'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -106,7 +113,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
@@ -118,7 +124,6 @@ USE_I18N = True
 
 USE_TZ = True
 
-
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
@@ -128,3 +133,5 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SECRET_KEY = "django-insecure-$$m5#x+5_8*-m6dns1am#k4=1=&i2izmzve=1)23)apt^&bite"
