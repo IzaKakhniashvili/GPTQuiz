@@ -44,14 +44,12 @@ INSTALLED_APPS = [
     "user",
 ]
 
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
-}
+# REST_FRAMEWORK = {
+#     'DEFAULT_AUTHENTICATION_CLASSES': (
+#         'rest_framework_simplejwt.authentication.JWTAuthentication',
+#     ),
+# }
 
-
-OPENAI_API_KEY = "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"
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -135,3 +133,5 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 SECRET_KEY = "django-insecure-$$m5#x+5_8*-m6dns1am#k4=1=&i2izmzve=1)23)apt^&bite"
+
+CELERY_BROKER_URL = "redis://localhost:6379/0"  # daakomentaret tu ar ikenebt celerys

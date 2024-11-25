@@ -1,20 +1,17 @@
 from django.db import models
-
-
-class Topic(models.Model):
-    name = models.CharField(max_length=255)
-
-    def __str__(self):
-        return self.name()
+from user.models import CustomUser
 
 
 class Question(models.Model):
-    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name='questions')
-    text = models.TextField()
+    name = models.TextField()
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
 
 
 class Answer(models.Model):
-    question = models.ForeignKey(Question, on_delete=models.CASCADE, related_name="answers")
+    name = models.TextField()
+    question = models.ForeignKey(Question, on_delete=models.CASCADE)
+
+
+class UserAnswer(models.Model):
     user_answer = models.TextField()
-    is_correct = models.BooleanField(default=False)
-    feedback = models.TextField(null=True, blank=True)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

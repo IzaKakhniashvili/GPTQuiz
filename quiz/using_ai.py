@@ -12,6 +12,7 @@ class AboutQuiz(BaseModel):
     message: str
     questions: List[str]
     answers: List[str]
+    answers_quantity: int
 
 
 class QuizPoint(BaseModel):
@@ -28,7 +29,7 @@ class Quiz:
             model="gpt-4o-mini-2024-07-18",
             messages=[
                 {"role": "system",
-                 "content": "If the user prompt gibberish text or wants to generate more than 15 questions, fill 'message' attribute else ignore 'message' attribute. By default, return questions only without possible answers, but include the correct answers in the 'answers' attribute of each question."},
+                 "content": "If the user prompt gibberish text or wants to generate more than 15 questions, fill 'message' attribute else ignore message attribute.By default, return questions only without possible answers.If user insisted generating quiz with possible answers fill 'answers' attribute. If possible answers provided, you should fill 'answers_quantity' attribute with quantity of each question's possible answer."},
                 {"role": "user", "content": user_input},
             ],
             response_format=AboutQuiz,

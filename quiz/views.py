@@ -1,92 +1,96 @@
-import os
-
-from decouple import config
-from django.shortcuts import render
-from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Topic, Question
-from .serializers import TopicSerializer, QuestionSerializer
-from openai import OpenAI
+from .models import Question, UserAnswer, Answer
+from .permissions import IsAllowed, HasPermission
+from .serializers import QuestionSerializer, QuizGeneratorSerializer, UserAnswerSerializer, PossibleAnswersSerializer
+from .using_ai import Quiz
+from .tasks import delete_instances
 
-client = OpenAI(api_key=config('OPENAI_API_KEY'))
-#  api_key=os.getenv('OPENAI_API_KEY'))
+
+class QuizGeneratorView(GenericAPIView):
+    serializer_class = QuizGeneratorSerializer
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        if 'id_of_quest' in request.session or Question.objects.filter(user=request.user).exists():
+            delete_instances.delay(request.user.id)
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            user_input = serializer.validated_data['text']
+            ai = Quiz()
+            result = ai.generate_quiz(user_input)
+            if not result.message:
+                if result.answers:
+                    i, j = 0, result.answers_quantity
+                    for question in result.questions:
+                        quest = Question.objects.create(name=question, user=request.user)
+                        for answer in result.answers[i:j]:
+                            Answer.objects.create(name=answer, question=quest)
+                        i += result.answers_quantity
+                        j += result.answers_quantity
+                    return Response(result, status=status.HTTP_200_OK)
+                else:
+                    Question.objects.bulk_create(
+                        [Question(name=question, user=request.user) for question in result.questions])
+                    return Response(result, status=status.HTTP_200_OK)
+
+            return Response({"message": "I can't generate quiz!"})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class GenerateQuestionsAPIView(APIView):
-    def post(self, request):
-        topic_name = request.data.get('topic', '').strip()
-        if not topic_name:
-            return Response({"error": "Topic is required"}, status=status.HTTP_400_BAD_REQUEST)
+class QuestionView(GenericAPIView):
+    queryset = Question.objects.all()
+    permission_classes = [IsAuthenticated, HasPermission]
 
-        # Save topic to DB
-        subject = Topic.objects.create(name=topic_name)
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return UserAnswerSerializer
+        return QuestionSerializer
 
-        try:
-            # Generate questions via ChatGPT using client.chat.completions.create
-            response = client.chat.completions.create(
-                model="gpt-4",  # Correct model name
-                messages=[
-                    {"role": "user", "content": f"Generate 10 questions about {topic_name}"}
-                ]
+    def get(self, request, *args, **kwargs):
+        id_of_question = self.request.session.get('id_of_quest', Question.objects.filter(user=request.user).first().id)
+        question = Question.objects.filter(id=id_of_question, user=request.user)
+        if question:
+            possible_answers = Answer.objects.filter(question=question.first())
+            if possible_answers:
+                quest = QuestionSerializer(question.first())
+                possible_answers = PossibleAnswersSerializer(possible_answers, many=True)
+                return Response({"question": quest.data,
+                                 'possible_answers': possible_answers.data}, status=status.HTTP_200_OK)
+            else:
+                serializer = QuestionSerializer(question.first())
+                return Response(serializer.data, status=status.HTTP_200_OK)
+        else:
+            self.request.session.pop('id_of_quest', None)
+            return Response(
+                {"message": "Quiz has ended."},
+                status=status.HTTP_200_OK
             )
 
-            # Extract questions from the response
-            response = response.choices[0].message.content
-            questions = response.split('\n')
-        except Exception as e:
-            return Response({"error": f"OpenAI API call failed: {str(e)}"},
-                            status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        # Save questions to DB
-        question_objects = [Question(topic=subject, text=q) for q in questions]
-        Question.objects.bulk_create(question_objects)
-
-        serializer = QuestionSerializer(question_objects, many=True)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    def post(self, request, *args, **kwargs):
+        serializer = UserAnswerSerializer(data=request.data)
+        if serializer.is_valid():
+            self.request.session['id_of_quest'] = self.request.session.get('id_of_quest',
+                                                                           Question.objects.filter(
+                                                                               user=request.user).first().id) + 1
+            serializer.save(user=request.user)
+            return Response(status=status.HTTP_201_CREATED)
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class ValidateAnswersAPIView(APIView):
-    def post(self, request):
-        answers = request.data.get('answers', [])
-        if not answers:
-            return Response({"error": "Answers are required"}, status=status.HTTP_400_BAD_REQUEST)
+class FinalAnswerView(GenericAPIView):
+    permission_classes = [IsAuthenticated, IsAllowed]
 
-        validated_answers = []
-        for answer in answers:
-            question = answer.get('question')
-            user_answer = answer.get('answer')
-
-            if not question or not user_answer:
-                return Response({"error": "Both question and answer are required in each answer pair."},
-                                status=status.HTTP_400_BAD_REQUEST)
-
-            try:
-                # Validate via OpenAI using client.chat.completions.create
-                chat_response = client.chat.completions.create(
-                    model="gpt-4",  # Correct model name
-                    messages=[
-                        {"role": "user", "content": f"Question: {question}\nAnswer: {user_answer}\nIs this correct?"}
-                    ]
-                )
-
-                # Extract feedback from the response
-                feedback = chat_response.choices[0].message.content
-
-                # Check if the answer is correct based on feedback
-                is_correct = "correct" in feedback.lower()
-
-            except Exception as e:
-                return Response({"error": f"OpenAI API call failed: {str(e)}"},
-                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            validated_answers.append({
-                "question": question,
-                "user_answer": user_answer,
-                "is_correct": is_correct,
-                "feedback": feedback,
-            })
-
-        return Response(validated_answers, status=status.HTTP_200_OK)
-
-# Create your views here.
+    def get(self, request, *args, **kwargs):
+        user_answers = UserAnswer.objects.filter(user=request.user)
+        questions = Question.objects.filter(user=request.user)
+        if user_answers:
+            ai = Quiz()
+            result = ai.evaluate_answer([answer.user_answer for answer in user_answers],
+                                        [quest.name for quest in questions])
+            delete_instances.delay(
+                request.user.id)  # თუ არ გაქვთ celery დაყენებული, user_answers.delete() questions.delete() ეს ჩაწერეთ ამის ნაცვლად
+            return Response({'result': result.point})

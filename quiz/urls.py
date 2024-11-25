@@ -1,10 +1,10 @@
 from django.urls import path
-from .views import GenerateQuestionsAPIView, ValidateAnswersAPIView
+from .views import QuizGeneratorView, QuestionView, FinalAnswerView
 
 app_name = 'quiz'
 
-
 urlpatterns = [
-    path('generate-questions/', GenerateQuestionsAPIView.as_view(), name='generate-questions'),
-    path('validate-answers/', ValidateAnswersAPIView.as_view(), name='validate-answers'),
+    path('', QuizGeneratorView.as_view(), name='quiz-generator'),
+    path('questions/', QuestionView.as_view(), name='questions'),
+    path('answer/', FinalAnswerView.as_view(), name='answer'),
 ]
