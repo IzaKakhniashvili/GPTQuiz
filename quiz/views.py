@@ -51,9 +51,9 @@ class QuestionView(GenericAPIView):
 
     def get(self, request, *args, **kwargs):
         id_of_question = self.request.session.get('id_of_quest', Question.objects.filter(user=request.user).first().id)
-        question = Question.objects.filter(id=id_of_question, user=request.user)
+        question = Question.objects.prefetch_related('answers').filter(id=id_of_question, user=request.user)
         if question:
-            possible_answers = Answer.objects.filter(question=question.first())
+            possible_answers = question.first().answers.all()
             if possible_answers:
                 quest = QuestionSerializer(question.first())
                 possible_answers = PossibleAnswersSerializer(possible_answers, many=True)
