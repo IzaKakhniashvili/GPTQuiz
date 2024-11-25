@@ -15,7 +15,7 @@ class QuizGeneratorView(GenericAPIView):
 
     def post(self, request, *args, **kwargs):
         if 'id_of_quest' in request.session or Question.objects.filter(user=request.user).exists():
-            delete_instances.delay(request.user.id)
+            delete_instances.delay(request.user.id) # თუ არ გაქვთ celery დაყენებული, user_answers.delete() questions.delete() ეს ჩაწერეთ ამის ნაცვლად
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             user_input = serializer.validated_data['text']
